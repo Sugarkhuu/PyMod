@@ -164,6 +164,10 @@ from scipy.sparse import csr_matrix
 S = csr_matrix(occurS)
 #print(S)
 
+nobs = len(mydict['varobs'])
+mshocks = mydict['varexo']
+nshock = len((mshocks))
+
 y = np.zeros([3,6])
 a = {'b': fn}
 a['b'](y)
@@ -207,9 +211,9 @@ nu = sum(np.array(m['systemid']).imag >= 0);
 npa = nx - nu;
 
 
-nobs = len(mydict['varobs'])
-mshocks = mydict['varexo']
-nshock = len((mshocks))
+#nobs = len(mydict['varobs'])
+#mshocks = mydict['varexo']
+#nshock = len((mshocks))
 #n = 10
 #t=1
 #t = m.tzero;
@@ -238,8 +242,8 @@ m['metasystem']['e'] = list(range(nobs))
 
 m['metadelete'] = [False]*nu
 for i in range(nu):
-   if any(m['systemid'][i]-1*1j == m['systemid'][nu+1:]):
-       m['metadelete'] = True
+   if any(m['systemid'][i]-1*1j == m['systemid'][nu:]):
+       m['metadelete'][i] = True
 
 
 for i in range(nu):
@@ -351,15 +355,9 @@ system = m['system0']
 
 # A1 y + B1 xb+ + E1 e + K1 = 0
 
-system['K'][0, mindex] = deriv.c[mindex]
-system['K'][0,tindex] = deriv.c(nm+tindex)
+#system['K'][0, mindex] = deriv.c[mindex]
+#system['K'][0,tindex] = deriv.c(nm+tindex)
 
-
-
-system.A{1}(mindex,m.metasystem.y) = deriv.f(mindex,m.metaderiv.y);
-%system.B{1}(mindex,m.metasystem.u) = deriv.f(mindex,m.metaderiv.u);
-system.B{1}(mindex,m.metasystem.pplus) = deriv.f(mindex,m.metaderiv.pplus);
-system.E{1}(mindex,m.metasystem.e) = deriv.f(mindex,m.metaderiv.e);
 
 system['A'][0][-nobseq:,m['metasystem']['y']] = deriv['f'][-nobseq:,m['metaderiv']['y']]
 #system['B']{1}(mindex,m.metasystem.u) = deriv.f(mindex,m.metaderiv.u);
@@ -381,3 +379,226 @@ system['B'][1][neq-nobseq:,:] = m['systemident']['x']
 #Derivatives are almost done (shocks). Now turn them into the matrices.
 # Add necessary leads and lags
 # numbers on the left and right hand side
+
+# Solve section!!!
+
+
+import scipy
+
+ny = nobs
+nx = len(m['systemid'])
+nb = sum(np.array(m['systemid']).imag < 0)
+nf = nx - nb
+ne = nshock
+#fkeep = ~m.metadelete;
+#nfkeep = sum(fkeep);
+#nalt = size(m.assign,3);
+
+AA = system['A'][1]
+BB = system['B'][1]
+
+#[SS,TT,QQ,ZZ] = scipy.linalg.qz(AA,BB)
+#[SS,TT,alpha,beta,QQ,ZZ] = scipy.linalg.ordqz(AA,BB,'rhp')
+[SS,TT,alpha,beta,QQ,ZZ] = scipy.linalg.ordqz(AA,BB,'iuc')
+#
+#eigval = - alpha/beta
+#abs(eigval)
+#tolerance = 1e-10
+#stable = abs(eigval) >= 1 + tolerance
+#unit = abs(abs(eigval)-1) < tolerance
+#clusters = np.zeros(eigval.shape)
+#clusters[:] = False
+#clusters[unit] = True
+#clusters[stable] = True
+
+#def sorter(a, b):
+#    global clusters
+#    
+#    eigval = - alpha/beta
+#    tolerance = 1e-10
+#    stable = abs(eigval) >= 1 + tolerance
+#    unit = abs(abs(eigval)-1) < tolerance
+#    clusters = np.zeros(eigval.shape)
+#    clusters[unit] = 2
+#    clusters[stable] = 1
+
+#def sorter(alhpa, beta):
+#    return clusters
+##    if abs(-a/b) >= 1 + tolerance:
+##        c = 2
+##    elif abs(-a/b) < 1 + tolerance:
+##        c = 1
+##    else:
+##        c = 0
+##    return c
+#
+#[SS,TT,alpha,beta,QQ,ZZ] = scipy.linalg.ordqz(SS,TT,sort=sorter)
+
+fkeep = ~m['metadelete']
+import operator
+fkeep = list(map(operator.not_, m['metadelete']))
+nfkeep = sum(fkeep)
+fkeep = fkeep + [False]*(ZZ.shape[0] - len(fkeep))
+
+  flag = True
+  C = np.dot(QQ,system['K'][1])
+  D = np.dot(QQ,system['E'][1])
+  S11 = SS[:nb,:nb]
+  S12 = SS[:nb,nb:]
+  S22 = SS[nb:,nb:]
+  T11 = TT[:nb,:nb]
+  T12 = TT[:nb,nb:]
+  T22 = TT[nb:,nb:]
+  Z11 = ZZ[fkeep,:nb]
+  Z12 = ZZ[fkeep,nb:end]
+  Z21 = ZZ[nf:,:nb]
+  Z22 = ZZ[nf:,nb:]
+  C1 = C[:nb,0]
+  C2 = C[nb:,0]
+  D1 = D[:nb,:]
+  D2 = D[nb:,:]
+
+  U = Z21
+
+  G = -np.dot(np.linalg.inv(Z21),Z22)
+
+# =============================================================================
+#     % Unstable block.
+# 
+#   G = -Z21\Z22;
+#   if any(isnan(G(:)))
+#     flag = false;
+#     return
+#   end
+#   Ru = -T22\D2;
+#   if any(isnan(Ru(:)))
+#     flag = false;
+#     return
+#   end
+#   if m.linear
+#     Ku = -(S22+T22)\C2;
+#   else
+#     Ku = zeros([nfkeep,1]);
+#   end
+#   if any(isnan(Ku(:)))
+#     flag = false;
+#     return
+#   end
+# 
+#   % Transform stable block == transform backward-looking variables:
+#   % a(t) = s(t) + G u(t+1).
+# 
+#   Ta = -S11\T11;
+#   if any(isnan(Ta(:)))
+#     flag = false;
+#     return
+#   end
+#   Xa0 = S11\(T11*G + T12);
+#   if any(isnan(Xa0(:)))
+#     flag = false;
+#     return
+#   end
+#   Ra = -Xa0*Ru - S11\D1;
+#   if any(isnan(Ra(:)))
+#     flag = false;
+#     return
+#   end
+#   Xa1 = G + S11\S12;
+#   if any(isnan(Xa1(:)))
+#     flag = false;
+#     return
+#   end
+#   if m.linear
+#     Ka = -(Xa0 + Xa1)*Ku - S11\C1;
+#   else
+#     Ka = asstate(:,2) - Ta*asstate(:,1);
+#   end
+#   if any(isnan(Ka(:)))
+#     flag = false;
+#     return
+#   end
+# 
+#   % Forward-looking variables.
+# 
+#   % Duplicit rows (metadelete) already deleted from Z11 and Z12.
+#   Tf = Z11;
+#   Xf = Z11*G + Z12;
+#   Rf = Xf*Ru;
+#   if m.linear
+#     Kf = Xf*Ku;
+#   else
+#     Kf = xfsstate(:,2) - Tf*asstate(:,1);
+#   end
+#   if any(isnan(Kf(:)))
+#     flag = false;
+#     return
+#   end
+# 
+#    % State-space form:
+#    % [xf(t);a(t)] = T a(t-1) + K + R(L) e(t),
+#    % U a(t) = xb(t).
+#    T = [Tf;Ta];
+#    K = [Kf;Ka];
+#    R = [Rf;Ra];
+# 
+#    % Remove negligible entries from U.
+#    sing = svd(U);
+#    tol = size(U,1)*eps(sing(1))^(2/3);
+#    U(abs(U) <= tol) = 0;
+#   
+#    % y(t) = Z a(t) + D + H e(t)
+#    if ny > 0
+#       Z = -full(system.A{1}\system.B{1});
+#       if any(isnan(Z(:)))
+#          flag = false;
+#          return,
+#       end
+#       H = -full(system.A{1})\full(system.E{1}); % eye(ny);
+#       if any(isnan(H(:)))
+#          flag = false;
+#          return
+#       end
+#       if m.linear
+#          D = full(-system.A{1}\system.K{1});
+#       else
+#          D = ysstate - Z*xbsstate(:,2); % mirek told ondra how to fix this
+#       end
+#       if any(isnan(D(:)))
+#          flag = false;
+#          return
+#       end
+#       % Remove negligible entries from Z.
+#       sing = svd(Z);
+#       tol = size(Z,2)*eps(sing(1))^(2/3);
+#       Z(abs(Z) <= tol) = 0;
+#       Z = Z*U;
+#    else
+#       Z = zeros([0,nb]);
+#       H = zeros([0,ne]);
+#       D = zeros([0,1]);
+#    end
+# 
+#   % Necessary initial conditions in xb vector.
+#   m.icondix(1,:,ialt) = any(abs(T/U) > tolerance,1);
+# 
+#   % Forward expansion.
+#   % a(t) <- -Xa J^(k-1) Ru e(t+k)
+#   % xf(t) <- Xf J^k Ru e(t+k)
+#   J = -T22\S22;
+#   Xa = Xa1 + Xa0*J;
+#   Jk = eye(size(J)); % highest computed power of J: e(t+k) requires J^k
+# 
+#   m.expand{1}(:,:,ialt) = Xa;
+#   m.expand{2}(:,:,ialt) = Xf;
+#   m.expand{3}(:,:,ialt) = Ru;
+#   m.expand{4}(:,:,ialt) = J;
+#   m.expand{5}(:,:,ialt) = Jk;
+# 
+#   m.solution{1}(:,:,ialt) = T;
+#   m.solution{2}(:,:,ialt) = R;
+#   m.solution{3}(:,:,ialt) = K;
+#   m.solution{4}(:,:,ialt) = Z;
+#   m.solution{5}(:,:,ialt) = H;
+#   m.solution{6}(:,:,ialt) = D;
+#   m.solution{7}(:,:,ialt) = U;
+# =============================================================================
