@@ -383,7 +383,7 @@ system['B'][1][neq-nobseq:,:] = m['systemident']['x']
 # Solve section!!!
 
 
-import scipy
+from scipy import linalg
 
 ny = nobs
 nx = len(m['systemid'])
@@ -399,7 +399,17 @@ BB = system['B'][1]
 
 #[SS,TT,QQ,ZZ] = scipy.linalg.qz(AA,BB)
 #[SS,TT,alpha,beta,QQ,ZZ] = scipy.linalg.ordqz(AA,BB,'rhp')
+def sorter(alhpa, beta):
+    clusters = np.zeros(4)
+    clusters[[0]] = 2
+    clusters[[1,2]] = 0
+    clusters[[2,3]] = 1
+    return clusters
+
+
 [SS,TT,alpha,beta,QQ,ZZ] = scipy.linalg.ordqz(AA,BB,'iuc')
+
+[SS,TT,alpha,beta,QQ,ZZ] = scipy.linalg.ordqz(AAs,BBs,sort=sorter)
 #
 #eigval = - alpha/beta
 #abs(eigval)
@@ -422,15 +432,6 @@ BB = system['B'][1]
 #    clusters[unit] = 2
 #    clusters[stable] = 1
 
-#def sorter(alhpa, beta):
-#    return clusters
-##    if abs(-a/b) >= 1 + tolerance:
-##        c = 2
-##    elif abs(-a/b) < 1 + tolerance:
-##        c = 1
-##    else:
-##        c = 0
-##    return c
 #
 #[SS,TT,alpha,beta,QQ,ZZ] = scipy.linalg.ordqz(SS,TT,sort=sorter)
 
