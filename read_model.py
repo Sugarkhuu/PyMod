@@ -397,10 +397,58 @@ ne = nshock
 AA = system['A'][1]
 BB = system['B'][1]
 
-#[SS,TT,QQ,ZZ] = scipy.linalg.qz(AA,BB)
+
+#Line 379 of _decomp_qz.py of scipy.linalg
+#    liwork = None
+#    if liwork is None or liwork == -1:
+#        result = tgsen(select, AA, BB, Q, Z, liwork=-1)
+#        liwork = result[-2][0]
+##    pdb.set_trace()
+#    result = tgsen(select, AA, BB, Q, Z, lwork=lwork, liwork=liwork)
+#    [SS,TT,alpha,beta,QQ,ZZ] = result[0], result[1], result[2], result[4], result[5], result[6]
+#    sfunction = _select_function(sort2)
+#    select = sfunction(alpha, beta)
+#    result = tgsen(select, SS, TT, QQ, ZZ, lwork=lwork, liwork=liwork)
+
+[SS,TT,QQ,ZZ] = scipy.linalg.qz(AA,BB)
 #[SS,TT,alpha,beta,QQ,ZZ] = scipy.linalg.ordqz(AA,BB,'rhp')
-[SS,TT,alpha,beta,QQ,ZZ] = scipy.linalg.ordqz(AA,BB,'iuc')
-#
+[SS,TT,alpha,beta,QQ,ZZ] = scipy.linalg.ordqz(AA,BB,sort=sorter1,sort2=sorter2,output='real')
+alpha/beta
+
+
+AA =[[0,0,0,-1.0000,0.4000,0,0,0,0,0,0],
+    [1.0000,         0,         0,         0,         0,         0,         0,         0,         0,         0,         0],
+         [0,         0,         0,         0,   -1.0000,         0,         0,         0,         0,         0,         0],
+         [0,         0,         0,         0,    0.7000,         0,         0,         0,         0,         0,         0],
+         [0,         0,         0,         0,         0,   -1.0000,         0,         0,         0,         0,         0],
+         [0,         0,         0,         0,         0,         0,   -1.0000,         0,         0,         0,         0],
+         [0,         0,         0,    1.0000,         0,         0,         0,         0,         0,         0,         0],
+         [0,         0,         0,         0,         0,         0,         0,    1.0000,         0,         0,         0],
+         [0,         0,         0,         0,         0,         0,         0,         0,    1.0000,         0,         0],
+         [0,         0,         0,         0,         0,         0,         0,         0,         0,    1.0000,         0],
+         [0,         0,         0,         0,         0,         0,         0,         0,         0,         0,    1.0000]]
+
+BB =    [[0,    0.2000,         0,         0,         0,         0,    1.0000,         0,         0,         0,    0.8000],
+         [0,   -1.0000,         0,         0,         0,         0,         0,         0,         0,         0,         0],
+         [0,         0,         0,         0,    0.9000,         0,         0,         0,         0,         0,         0],
+         [0,         0,   -1.0000,         0,         0,         0,         0,         0,         0,         0,         0],
+         [0,         0,         0,         0,         0,         0,         0,         0,         0,         0,         0],
+         [0,         0,         0,         0,         0,         0,         0,         0,         0,         0,         0],
+   [-1.0000,         0,         0,         0,         0,         0,         0,         0,         0,         0,         0],
+         [0,         0,         0,   -1.0000,         0,         0,         0,         0,         0,         0,         0],
+         [0,         0,         0,         0,         0,         0,         0,   -1.0000,         0,         0,         0],
+         [0,         0,         0,         0,         0,         0,         0,         0,   -1.0000,         0,         0],
+         [0,         0,         0,         0,         0,         0,         0,         0,         0,   -1.0000,         0]]
+
+#matlab:
+# [AA,BB,Q,Z] = qz(A,B)
+# Q*A*Z = AA and Q*B*Z = BB
+#python:
+#AA, BB, Q, Z = linalg.qz(A, B)
+#(A,B) = (Q*AA*Z', Q*BB*Z')
+#Q'*A*Z = AA and Q'*B*Z = BB
+
+
 #eigval = - alpha/beta
 #abs(eigval)
 #tolerance = 1e-10
@@ -411,17 +459,44 @@ BB = system['B'][1]
 #clusters[unit] = True
 #clusters[stable] = True
 
-#def sorter(a, b):
-#    global clusters
-#    
-#    eigval = - alpha/beta
-#    tolerance = 1e-10
-#    stable = abs(eigval) >= 1 + tolerance
-#    unit = abs(abs(eigval)-1) < tolerance
-#    clusters = np.zeros(eigval.shape)
-#    clusters[unit] = 2
-#    clusters[stable] = 1
+def sorter(a, b):
+    global clusters
+    eigval = - alpha/beta
+    tolerance = 1e-10
+    stable = abs(eigval) >= 1 + tolerance
+    unit = abs(abs(eigval)-1) < tolerance
+    clusters = np.zeros(eigval.shape)
+    clusters[unit] = 2
+    clusters[stable] = 1
 
+def sorter1(a,b):
+    # this works well
+      global clusters
+      b[abs(b)== 0] = 0.001
+      eigval = - a/b
+      tolerance = 1e-5
+      stable = abs(eigval) > 1 + tolerance
+      # stable = abs(eigval) >= 1 + tolerance
+      unit = abs(abs(eigval)-1) < tolerance
+      clusters = np.zeros(eigval.shape)
+      clusters[stable] = 1
+      clusters[unit] = 1
+      return clusters
+
+def sorter2(a,b):
+    # this works well
+      global clusters
+      b[abs(b)== 0] = 0.001
+      eigval = - a/b
+      tolerance = 1e-5
+#      stable = abs(eigval) > 1 + tolerance
+      # stable = abs(eigval) >= 1 + tolerance
+      unit = abs(abs(eigval)-1) < tolerance
+      clusters = np.zeros(eigval.shape)
+#      clusters[stable] = 1
+      clusters[unit] = 1
+      return clusters
+  
 #def sorter(alhpa, beta):
 #    return clusters
 ##    if abs(-a/b) >= 1 + tolerance:
@@ -434,33 +509,33 @@ BB = system['B'][1]
 #
 #[SS,TT,alpha,beta,QQ,ZZ] = scipy.linalg.ordqz(SS,TT,sort=sorter)
 
-fkeep = ~m['metadelete']
+#fkeep = ~m['metadelete']
 import operator
 fkeep = list(map(operator.not_, m['metadelete']))
 nfkeep = sum(fkeep)
 fkeep = fkeep + [False]*(ZZ.shape[0] - len(fkeep))
 
-  flag = True
-  C = np.dot(QQ,system['K'][1])
-  D = np.dot(QQ,system['E'][1])
-  S11 = SS[:nb,:nb]
-  S12 = SS[:nb,nb:]
-  S22 = SS[nb:,nb:]
-  T11 = TT[:nb,:nb]
-  T12 = TT[:nb,nb:]
-  T22 = TT[nb:,nb:]
-  Z11 = ZZ[fkeep,:nb]
-  Z12 = ZZ[fkeep,nb:end]
-  Z21 = ZZ[nf:,:nb]
-  Z22 = ZZ[nf:,nb:]
-  C1 = C[:nb,0]
-  C2 = C[nb:,0]
-  D1 = D[:nb,:]
-  D2 = D[nb:,:]
+flag = True
+C = np.dot(QQ,system['K'][1])
+D = np.dot(QQ,system['E'][1])
+S11 = SS[:nb,:nb]
+S12 = SS[:nb,nb:]
+S22 = SS[nb:,nb:]
+T11 = TT[:nb,:nb]
+T12 = TT[:nb,nb:]
+T22 = TT[nb:,nb:]
+Z11 = ZZ[fkeep,:nb]
+Z12 = ZZ[fkeep,nb:]
+Z21 = ZZ[nf:,:nb]
+Z22 = ZZ[nf:,nb:]
+C1 = C[:nb,0]
+C2 = C[nb:,0]
+D1 = D[:nb,:]
+D2 = D[nb:,:]
 
-  U = Z21
+U = Z21
 
-  G = -np.dot(np.linalg.inv(Z21),Z22)
+G = -np.dot(np.linalg.inv(Z21),Z22)
 
 # =============================================================================
 #     % Unstable block.
